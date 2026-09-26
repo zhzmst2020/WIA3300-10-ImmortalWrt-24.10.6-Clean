@@ -85,3 +85,5 @@ jobs:
           tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
           name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
           files: output/*
+
+# Trigger a fresh build after fixing the WIA3300-10 DTS duplicate-label error.
