@@ -2,6 +2,11 @@ name: Build WIA3300-10 ImmortalWrt 24.10.6 Clean
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'config/**'
+      - 'patches/**'
 
 permissions:
   contents: write
