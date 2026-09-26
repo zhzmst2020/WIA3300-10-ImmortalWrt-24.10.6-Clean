@@ -40,7 +40,8 @@ jobs:
       - name: Install WIA3300-10 board files
         run: |
           cp patches/mt7621_skspruce_wia3300-10.dts immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
-          cat patches/mt7621.mk.append >> immortalwrt/target/linux/ramips/image/mt7621.mk
+          awk 'BEGIN { while ((getline line < "../patches/mt7621.mk.append") > 0) extra = extra line "\n" } /^\$\(eval \$\(call BuildImage\)\)$/ { printf "%s", extra } { print }' immortalwrt/target/linux/ramips/image/mt7621.mk > /tmp/mt7621.mk
+          mv /tmp/mt7621.mk immortalwrt/target/linux/ramips/image/mt7621.mk
 
       - name: Verify board definition
         working-directory: immortalwrt
@@ -81,6 +82,6 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-$${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build $${{ github.run_number }}
+          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
+          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
           files: output/*
