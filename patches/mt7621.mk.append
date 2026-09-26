@@ -1,0 +1,11 @@
+
+# SKSpruce WIA3300-10 (32M)
+define Device/skspruce_wia3300-10
+  $(Device/dsa-migration)
+  IMAGE_SIZE := 31936k
+  DEVICE_VENDOR := SKSpruce
+  DEVICE_MODEL := WIA3300-10
+  DEVICE_DTS := mt7621_skspruce_wia3300-10
+  DEVICE_PACKAGES := kmod-mt7615-firmware kmod-usb3
+endef
+TARGET_DEVICES += skspruce_wia3300-10
