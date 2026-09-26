@@ -40,7 +40,9 @@ jobs:
       - name: Install WIA3300-10 board files
         run: |
           cp patches/mt7621_skspruce_wia3300-10.dts immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
-          awk 'BEGIN { while ((getline line < "../patches/mt7621.mk.append") > 0) extra = extra line "\n" } /^\$\(eval \$\(call BuildImage\)\)$/ { printf "%s", extra } { print }' immortalwrt/target/linux/ramips/image/mt7621.mk > /tmp/mt7621.mk
+          sed '$d' immortalwrt/target/linux/ramips/image/mt7621.mk > /tmp/mt7621.mk
+          cat patches/mt7621.mk.append >> /tmp/mt7621.mk
+          tail -n 1 immortalwrt/target/linux/ramips/image/mt7621.mk >> /tmp/mt7621.mk
           mv /tmp/mt7621.mk immortalwrt/target/linux/ramips/image/mt7621.mk
 
       - name: Verify board definition
