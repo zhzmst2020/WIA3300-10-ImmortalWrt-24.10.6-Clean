@@ -70,11 +70,15 @@ jobs:
         run: |
           cp config/wia3300-10.config immortalwrt/.config
           case "$PROFILE" in
-            clean) ;;
+            clean)
+              ;;
             usb-storage|usb-printer|usb-download|usb-extroot)
               cat "config/profiles/$PROFILE.config" >> immortalwrt/.config
               ;;
-            *) echo "ERROR: unsupported profile: $PROFILE"; exit 1 ;;
+            *)
+              echo "ERROR: unsupported profile: $PROFILE"
+              exit 1
+              ;;
           esac
           echo "Selected profile: $PROFILE"
 
@@ -82,219 +86,17 @@ jobs:
         working-directory: immortalwrt
         run: |
           make defconfig
-          # Custom WIA3300-10 is added by our image Makefile patch, so preserve
-          # its profile selection after Kconfig normalization.
           echo 'CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y' >> .config
           echo "=== TARGET ==="
           grep -E '^CONFIG_TARGET_(ramips|ramips_mt7621|ramips_mt7621_DEVICE_skspruce_wia3300-10)=' .config
           echo "=== SELECTED PROFILE ==="
-          grep '^CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          mkdir -p output
-          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ \;
-          test -n "$(find output -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print -quit)"
-          if find output -maxdepth 1 -type f -name '*adslr_g7*' | grep -q .; then
-            echo "ERROR: wrong device profile adslr_g7 was produced"
-            exit 1
-          fi
-          if ! find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' | grep -q .; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not produced"
-            ls -lah output
-            exit 1
-          fi
-          ls -lh output
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config
-          echo "=== CLEAN BASE PACKAGES ==="
-          grep -E '^CONFIG_PACKAGE_(luci|luci-ssl-openssl|luci-compat|opkg|kmod-mt7615-firmware|kmod-usb3|kmod-usb-storage|block-mount|kmod-fs-ext4|kmod-fs-vfat|usbutils)=' .config || true
-          test "$(grep -c '^CONFIG_TARGET_ramips=y
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          mkdir -p output
-          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ \;
-          test -n "$(find output -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print -quit)"
-          if find output -maxdepth 1 -type f -name '*adslr_g7*' | grep -q .; then
-            echo "ERROR: wrong device profile adslr_g7 was produced"
-            exit 1
-          fi
-          if ! find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' | grep -q .; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not produced"
-            ls -lah output
-            exit 1
-          fi
-          ls -lh output
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config)" = "1"
-          test "$(grep -c '^CONFIG_TARGET_ramips_mt7621=y
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          mkdir -p output
-          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ \;
-          test -n "$(find output -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print -quit)"
-          if find output -maxdepth 1 -type f -name '*adslr_g7*' | grep -q .; then
-            echo "ERROR: wrong device profile adslr_g7 was produced"
-            exit 1
-          fi
-          if ! find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' | grep -q .; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not produced"
-            ls -lah output
-            exit 1
-          fi
-          ls -lh output
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config)" = "1"
-          test "$(grep -c '^CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          mkdir -p output
-          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ \;
-          test -n "$(find output -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print -quit)"
-          if find output -maxdepth 1 -type f -name '*adslr_g7*' | grep -q .; then
-            echo "ERROR: wrong device profile adslr_g7 was produced"
-            exit 1
-          fi
-          if ! find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' | grep -q .; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not produced"
-            ls -lah output
-            exit 1
-          fi
-          ls -lh output
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config)" = "1"
-          test "$(grep -c '^CONFIG_PACKAGE_luci-compat=y
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          mkdir -p output
-          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ \;
-          test -n "$(find output -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print -quit)"
-          if find output -maxdepth 1 -type f -name '*adslr_g7*' | grep -q .; then
-            echo "ERROR: wrong device profile adslr_g7 was produced"
-            exit 1
-          fi
-          if ! find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' | grep -q .; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not produced"
-            ls -lah output
-            exit 1
-          fi
-          ls -lh output
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config)" = "1"
+          grep '^CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y$' .config
+          echo "=== BASE / OPTIONAL PACKAGES ==="
+          grep -E '^CONFIG_PACKAGE_(luci|luci-ssl-openssl|luci-compat|opkg|kmod-mt7615-firmware|kmod-usb3|kmod-usb-storage|block-mount|kmod-fs-ext4|kmod-fs-vfat|usbutils|kmod-nf-socket|kmod-nf-tproxy|kmod-nft-socket|kmod-nft-tproxy)=' .config || true
+          test "$(grep -c '^CONFIG_TARGET_ramips=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_TARGET_ramips_mt7621=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_PACKAGE_luci-compat=y$' .config)" = "1"
 
       - name: Download sources
         working-directory: immortalwrt
@@ -310,7 +112,7 @@ jobs:
         run: |
           set -eu
           mkdir -p output
-          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ \;
+          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ ;
           test -n "$(find output -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print -quit)"
           if find output -maxdepth 1 -type f -name '*adslr_g7*' | grep -q .; then
             echo "ERROR: wrong device profile adslr_g7 was produced"
