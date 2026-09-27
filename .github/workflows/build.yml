@@ -38,8 +38,11 @@ jobs:
 
       - name: Install WIA3300-10 board files
         run: |
-          cp patches/mt7621_skspruce_wia3300-10.dts             immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
-          cat patches/mt7621.mk.append >>             immortalwrt/target/linux/ramips/image/mt7621.mk
+          cp patches/mt7621_skspruce_wia3300-10.dts immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
+          cat patches/mt7621.mk.append >> immortalwrt/target/linux/ramips/image/mt7621.mk
+          mkdir -p immortalwrt/files/etc
+          cp patches/rc.local immortalwrt/files/etc/rc.local
+          chmod 0755 immortalwrt/files/etc/rc.local
 
       - name: Verify board definition
         working-directory: immortalwrt
@@ -47,6 +50,7 @@ jobs:
           test -f target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
           grep -n '^define Device/skspruce_wia3300-10$' target/linux/ramips/image/mt7621.mk
           grep -n '^TARGET_DEVICES += skspruce_wia3300-10$' target/linux/ramips/image/mt7621.mk
+          test -f files/etc/rc.local
 
       - name: Apply build configuration
         run: |
@@ -56,139 +60,14 @@ jobs:
         working-directory: immortalwrt
         run: |
           make defconfig
-          echo "=== TARGET SELECTION AFTER DEFCONFIG ==="
-          grep -E '^CONFIG_TARGET_(ramips|DEVICE_ramips_mt7621_DEVICE_)' .config || true
-          echo "=== WIA3300-10 IN TARGET INFO ==="
-          grep -n -A12 -B3 'skspruce_wia3300-10' tmp/.targetinfo || true
-          echo "=== WIA3300-10 IMAGE PROFILE ==="
-          grep -n -A8 -B2 'define Device/skspruce_wia3300-10' target/linux/ramips/image/mt7621.mk || true
-          test "$(grep -c '^CONFIG_TARGET_ramips=y
-
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          mkdir -p output
-          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ \;
-          test -n "$(find output -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print -quit)"
-          if find output -maxdepth 1 -type f -name '*adslr_g7*' | grep -q .; then
-            echo "ERROR: wrong device profile adslr_g7 was produced"
-            exit 1
-          fi
-          if ! find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' | grep -q .; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not produced"
-            ls -lah output
-            exit 1
-          fi
-          ls -lh output
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config)" = "1"
-          test "$(grep -c '^CONFIG_TARGET_ramips_mt7621=y
-
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          mkdir -p output
-          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ \;
-          test -n "$(find output -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print -quit)"
-          if find output -maxdepth 1 -type f -name '*adslr_g7*' | grep -q .; then
-            echo "ERROR: wrong device profile adslr_g7 was produced"
-            exit 1
-          fi
-          if ! find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' | grep -q .; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not produced"
-            ls -lah output
-            exit 1
-          fi
-          ls -lh output
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config)" = "1"
-          test "$(grep -c '^CONFIG_TARGET_DEVICE_ramips_mt7621_DEVICE_skspruce_wia3300-10=y
-
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          mkdir -p output
-          find immortalwrt/bin/targets/ramips/mt7621 -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -exec cp {} output/ \;
-          test -n "$(find output -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print -quit)"
-          if find output -maxdepth 1 -type f -name '*adslr_g7*' | grep -q .; then
-            echo "ERROR: wrong device profile adslr_g7 was produced"
-            exit 1
-          fi
-          if ! find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' | grep -q .; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not produced"
-            ls -lah output
-            exit 1
-          fi
-          ls -lh output
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config)" = "1"
-          grep -E '^(CONFIG_TARGET_ramips|CONFIG_TARGET_DEVICE_ramips_mt7621_DEVICE_skspruce_wia3300-10|CONFIG_PACKAGE_luci-compat|CONFIG_PACKAGE_block-mount|CONFIG_PACKAGE_kmod-usb-storage|CONFIG_PACKAGE_kmod-fs-ext4)' .config
+          echo "=== TARGET ==="
+          grep -E '^CONFIG_TARGET_(ramips|ramips_mt7621|DEVICE_ramips_mt7621_DEVICE_skspruce_wia3300-10)=' .config
+          echo "=== CLEAN BASE PACKAGES ==="
+          grep -E '^CONFIG_PACKAGE_(luci|luci-ssl-openssl|luci-compat|opkg|kmod-mt7615-firmware|kmod-usb3|kmod-usb-storage|block-mount|kmod-fs-ext4|kmod-fs-vfat|usbutils)=' .config || true
+          test "$(grep -c '^CONFIG_TARGET_ramips=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_TARGET_ramips_mt7621=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_TARGET_DEVICE_ramips_mt7621_DEVICE_skspruce_wia3300-10=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_PACKAGE_luci-compat=y$' .config)" = "1"
 
       - name: Download sources
         working-directory: immortalwrt
