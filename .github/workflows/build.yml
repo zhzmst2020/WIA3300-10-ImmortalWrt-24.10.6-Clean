@@ -2,6 +2,18 @@ name: Build WIA3300-10 ImmortalWrt 24.10.6 Clean
 
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Build profile'
+        required: true
+        default: clean
+        type: choice
+        options:
+          - clean
+          - usb-storage
+          - usb-printer
+          - usb-download
+          - usb-extroot
   push:
     paths:
       - '.github/workflows/build.yml'
@@ -53,8 +65,18 @@ jobs:
           test -f files/etc/rc.local
 
       - name: Apply build configuration
+        env:
+          PROFILE: ${{ github.event.inputs.profile || 'clean' }}
         run: |
           cp config/wia3300-10.config immortalwrt/.config
+          case "$PROFILE" in
+            clean) ;;
+            usb-storage|usb-printer|usb-download|usb-extroot)
+              cat "config/profiles/$PROFILE.config" >> immortalwrt/.config
+              ;;
+            *) echo "ERROR: unsupported profile: $PROFILE"; exit 1 ;;
+          esac
+          echo "Selected profile: $PROFILE"
 
       - name: Generate final configuration
         working-directory: immortalwrt
