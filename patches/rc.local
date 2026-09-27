@@ -1,0 +1,21 @@
+#!/bin/sh
+# WIA3300-10 wireless MAC fix
+(
+    sleep 10
+    . /lib/functions/system.sh
+    board=$(board_name)
+    [ "$board" = "skspruce,wia3300-10" ] || exit 0
+    lan_mac=$(mtd_get_mac_binary factory 0xe000)
+    [ -z "$lan_mac" ] && exit 0
+    for phy in /sys/class/ieee80211/phy*; do
+        phy_num=${phy##*/phy}
+        case "$phy_num" in
+            0) new_mac=$(macaddr_add "$lan_mac" 2) ;;
+            1) new_mac=$(macaddr_add "$lan_mac" 3) ;;
+            *) continue ;;
+        esac
+        echo "$new_mac" > "$phy/macaddress" 2>/dev/null
+    done
+    wifi down && wifi up
+) &
+exit 0
