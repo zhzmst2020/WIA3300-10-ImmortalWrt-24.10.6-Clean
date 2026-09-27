@@ -1,7 +1,4 @@
-/dts-v1/;
-
 #include "mt7621.dtsi"
-
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
@@ -11,46 +8,49 @@
 	model = "Skspruce WIA3300-10";
 
 	aliases {
-		led-boot = &led_power;
-		led-failsafe = &led_power_red;
-		led-running = &led_power;
-		led-upgrade = &led_power;
+		led-boot = &led_power_boot;
+		led-failsafe = &led_power_boot;
+		led-running = &led_power_sys;
+		led-upgrade = &led_power_boot;
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,115200";
 	};
 
 	leds {
 		compatible = "gpio-leds";
 
-		led_power_red: power_red {
-			function = LED_FUNCTION_STATUS;
-			color = <LED_COLOR_ID_RED>;
-			gpios = <&gpio 23 GPIO_ACTIVE_HIGH>;
+		led_power_boot: power-red {
+			label = "wia3300-10:red:power";
+			gpios = <&gpio 23 GPIO_ACTIVE_LOW>;
+			default-state = "on";
 		};
 
-		led_power: power {
-			function = LED_FUNCTION_POWER;
-			color = <LED_COLOR_ID_GREEN>;
-			gpios = <&gpio 24 GPIO_ACTIVE_HIGH>;
+		led_power_sys: power-green {
+			label = "wia3300-10:green:power";
+			gpios = <&gpio 24 GPIO_ACTIVE_LOW>;
+			default-state = "off";
 		};
 
-		wifi_2g {
-			label = "wifi_2g";
+		wan-green {
+			label = "wia3300-10:green:wan";
+			gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
+		};
+
+		wlan2g-green {
+			label = "wia3300-10:green:wlan2g";
 			gpios = <&gpio 4 GPIO_ACTIVE_LOW>;
 		};
 
-		wifi_5g {
-			label = "wifi_5g";
+		wlan5g-blue {
+			label = "wia3300-10:blue:wlan5g";
 			gpios = <&gpio 22 GPIO_ACTIVE_LOW>;
-		};
-
-		wan {
-			label = "wan";
-			gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
 		};
 	};
 
 	keys {
 		compatible = "gpio-keys";
-
 		reset {
 			label = "reset";
 			gpios = <&gpio 18 GPIO_ACTIVE_LOW>;
@@ -65,7 +65,7 @@
 	flash@0 {
 		compatible = "jedec,spi-nor";
 		reg = <0>;
-		spi-max-frequency = <50000000>;
+		spi-max-frequency = <40000000>;
 
 		partitions {
 			compatible = "fixed-partitions";
@@ -97,11 +97,6 @@
 					eeprom_factory_0: eeprom@0 {
 						reg = <0x0 0x4da8>;
 					};
-
-					eeprom_factory_8000: eeprom@8000 {
-						reg = <0x8000 0x4da8>;
-					};
-
 					macaddr_factory_4: macaddr@4 {
 						reg = <0x4 0x6>;
 					};
@@ -109,7 +104,6 @@
 					macaddr_factory_e000: macaddr@e000 {
 						reg = <0xe000 0x6>;
 					};
-
 					macaddr_factory_e006: macaddr@e006 {
 						reg = <0xe006 0x6>;
 					};
@@ -117,40 +111,25 @@
 			};
 
 			partition@50000 {
+				compatible = "denx,uimage";
 				label = "firmware";
-				reg = <0x50000 0x1f30000>;
-			};
-
-			partition@1f80000 {
-				label = "Storage";
-				reg = <0x1f80000 0x80000>;
-				read-only;
+				reg = <0x50000 0x1fb0000>;
 			};
 		};
 	};
 };
 
 &pcie {
-	status = "okay";
+    status = "okay";
 };
 
 &pcie0 {
 	wifi@0,0 {
 		compatible = "mediatek,mt76";
 		reg = <0x0000 0 0 0 0>;
-		nvmem-cells = <&eeprom_factory_8000>;
-		nvmem-cell-names = "eeprom";
-		ieee80211-freq-limit = <5000000 6000000>;
-	};
-};
 
-&pcie1 {
-	wifi@0,0 {
-		compatible = "mediatek,mt76";
-		reg = <0x0000 0 0 0 0>;
-		nvmem-cells = <&eeprom_factory_0>;
-		nvmem-cell-names = "eeprom";
-		ieee80211-freq-limit = <2400000 2500000>;
+		nvmem-cells = <&eeprom_factory_0>, <&macaddr_factory_4>;
+		nvmem-cell-names = "eeprom", "mac-address";
 	};
 };
 
@@ -162,17 +141,22 @@
 &gmac1 {
 	status = "okay";
 	label = "wan";
-	phy-handle = <&ethphy4>;
+	phy-handle = <&ethphy0>;
+
 	nvmem-cells = <&macaddr_factory_e006>;
 	nvmem-cell-names = "mac-address";
 };
 
-&ethphy4 {
+
+&ethphy0 {
 	/delete-property/ interrupts;
 };
 
 &switch0 {
+status = "okay";
+	mediatek,mcm; 
 	ports {
+		
 		port@1 {
 			status = "okay";
 			label = "lan1";
