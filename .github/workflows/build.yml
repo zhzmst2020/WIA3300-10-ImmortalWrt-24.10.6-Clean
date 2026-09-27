@@ -127,21 +127,7 @@ jobs:
           for f in "$OUTDIR"/*squashfs-sysupgrade.bin; do
             [ -f "$f" ] || continue
             echo "Candidate: $(basename "$f")"
-            if printf '%s\n' "$(basename "$f")" | grep -Eq 'skspruce_wia3300-10.*squashfs-sysupgrade\.bin
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
-; then
+            if printf '%s\n' "$(basename "$f")" | grep -Eq 'skspruce_wia3300-10.*squashfs-sysupgrade\.bin'; then
               cp -f "$f" output/
               found=1
             fi
