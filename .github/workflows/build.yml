@@ -57,12 +57,11 @@ jobs:
           chmod 0755 immortalwrt/files/etc/rc.local
 
       - name: Verify board definition
-        working-directory: immortalwrt
         run: |
-          test -f target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
-          grep -n '^define Device/skspruce_wia3300-10$' target/linux/ramips/image/mt7621.mk
-          grep -n '^TARGET_DEVICES += skspruce_wia3300-10$' target/linux/ramips/image/mt7621.mk
-          test -f files/etc/rc.local
+          test -f immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
+          grep -n '^define Device/skspruce_wia3300-10$' immortalwrt/target/linux/ramips/image/mt7621.mk
+          grep -n '^TARGET_DEVICES += skspruce_wia3300-10$' immortalwrt/target/linux/ramips/image/mt7621.mk
+          test -f immortalwrt/files/etc/rc.local
 
       - name: Apply build configuration
         env:
@@ -70,15 +69,11 @@ jobs:
         run: |
           cp config/wia3300-10.config immortalwrt/.config
           case "$PROFILE" in
-            clean)
-              ;;
+            clean) ;;
             usb-storage|usb-printer|usb-download|usb-extroot)
               cat "config/profiles/$PROFILE.config" >> immortalwrt/.config
               ;;
-            *)
-              echo "ERROR: unsupported profile: $PROFILE"
-              exit 1
-              ;;
+            *) echo "ERROR: unsupported profile: $PROFILE"; exit 1 ;;
           esac
           echo "Selected profile: $PROFILE"
 
@@ -89,14 +84,14 @@ jobs:
           echo 'CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y' >> .config
           echo "=== TARGET ==="
           grep -E '^CONFIG_TARGET_(ramips|ramips_mt7621|ramips_mt7621_DEVICE_skspruce_wia3300-10)=' .config
-          echo "=== SELECTED PROFILE ==="
-          grep '^CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y$' .config
-          echo "=== BASE / OPTIONAL PACKAGES ==="
-          grep -E '^CONFIG_PACKAGE_(luci|luci-ssl-openssl|luci-compat|opkg|kmod-mt7615-firmware|kmod-tun|kmod-usb3|kmod-usb-storage|block-mount|kmod-fs-ext4|kmod-fs-vfat|usbutils|kmod-nf-socket|kmod-nf-tproxy|kmod-nft-socket|kmod-nft-tproxy)=' .config || true
+          echo "=== SELECTED PACKAGES ==="
+          grep -E '^CONFIG_PACKAGE_(luci|luci-ssl-openssl|luci-compat|opkg|kmod-mt7615-firmware|kmod-tun|kmod-ledtrig-netdev|kmod-usb3|kmod-usb-storage|block-mount|kmod-fs-ext4|kmod-fs-vfat|usbutils|kmod-nf-socket|kmod-nf-tproxy|kmod-nft-socket|kmod-nft-tproxy)=' .config || true
           test "$(grep -c '^CONFIG_TARGET_ramips=y$' .config)" = "1"
           test "$(grep -c '^CONFIG_TARGET_ramips_mt7621=y$' .config)" = "1"
           test "$(grep -c '^CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y$' .config)" = "1"
-          test "$(grep -c '^CONFIG_PACKAGE_luci-compat=y
+          test "$(grep -c '^CONFIG_PACKAGE_luci-compat=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_PACKAGE_kmod-tun=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_PACKAGE_kmod-ledtrig-netdev=y$' .config)" = "1"
 
       - name: Download sources
         working-directory: immortalwrt
@@ -112,162 +107,23 @@ jobs:
         run: |
           set -eu
           OUTDIR="immortalwrt/bin/targets/ramips/mt7621"
-
-          echo "=== Firmware target directory ==="
           test -d "$OUTDIR"
           ls -lah "$OUTDIR"
-
-          echo "=== Generated firmware images ==="
           find "$OUTDIR" -maxdepth 1 -type f \( -name '*.bin' -o -name '*.itb' -o -name '*.img' \) -print | sort
-
           mkdir -p output
-
-          echo "=== Collect WIA3300-10 sysupgrade image ==="
           found=0
           for f in "$OUTDIR"/*squashfs-sysupgrade.bin; do
             [ -f "$f" ] || continue
-            echo "Candidate: $(basename "$f")"
             if printf '%s\n' "$(basename "$f")" | grep -Eq 'skspruce_wia3300-10.*squashfs-sysupgrade\.bin'; then
               cp -f "$f" output/
               found=1
             fi
           done
-
           if [ "$found" -ne 1 ]; then
             echo "ERROR: WIA3300-10 sysupgrade image was not found."
-            echo "=== Available sysupgrade images ==="
             find "$OUTDIR" -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print | sort || true
-            echo "=== Output directory ==="
-            ls -lah output
             exit 1
           fi
-
-          echo "=== Final firmware ==="
-          ls -lh output
-          test -n "$(find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' -print -quit)"
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config)" = "1"
-          test "$(grep -c '^CONFIG_PACKAGE_kmod-tun=y
-
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          OUTDIR="immortalwrt/bin/targets/ramips/mt7621"
-
-          echo "=== Firmware target directory ==="
-          test -d "$OUTDIR"
-          ls -lah "$OUTDIR"
-
-          echo "=== Generated firmware images ==="
-          find "$OUTDIR" -maxdepth 1 -type f \( -name '*.bin' -o -name '*.itb' -o -name '*.img' \) -print | sort
-
-          mkdir -p output
-
-          echo "=== Collect WIA3300-10 sysupgrade image ==="
-          found=0
-          for f in "$OUTDIR"/*squashfs-sysupgrade.bin; do
-            [ -f "$f" ] || continue
-            echo "Candidate: $(basename "$f")"
-            if printf '%s\n' "$(basename "$f")" | grep -Eq 'skspruce_wia3300-10.*squashfs-sysupgrade\.bin'; then
-              cp -f "$f" output/
-              found=1
-            fi
-          done
-
-          if [ "$found" -ne 1 ]; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not found."
-            echo "=== Available sysupgrade images ==="
-            find "$OUTDIR" -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print | sort || true
-            echo "=== Output directory ==="
-            ls -lah output
-            exit 1
-          fi
-
-          echo "=== Final firmware ==="
-          ls -lh output
-          test -n "$(find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' -print -quit)"
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
-          path: output/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
-          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
-          files: output/*
- .config)" = "1"
-
-      - name: Download sources
-        working-directory: immortalwrt
-        run: |
-          make download -j8
-
-      - name: Build firmware
-        working-directory: immortalwrt
-        run: |
-          make -j$(nproc) V=s
-
-      - name: Verify and collect firmware
-        run: |
-          set -eu
-          OUTDIR="immortalwrt/bin/targets/ramips/mt7621"
-
-          echo "=== Firmware target directory ==="
-          test -d "$OUTDIR"
-          ls -lah "$OUTDIR"
-
-          echo "=== Generated firmware images ==="
-          find "$OUTDIR" -maxdepth 1 -type f \( -name '*.bin' -o -name '*.itb' -o -name '*.img' \) -print | sort
-
-          mkdir -p output
-
-          echo "=== Collect WIA3300-10 sysupgrade image ==="
-          found=0
-          for f in "$OUTDIR"/*squashfs-sysupgrade.bin; do
-            [ -f "$f" ] || continue
-            echo "Candidate: $(basename "$f")"
-            if printf '%s\n' "$(basename "$f")" | grep -Eq 'skspruce_wia3300-10.*squashfs-sysupgrade\.bin'; then
-              cp -f "$f" output/
-              found=1
-            fi
-          done
-
-          if [ "$found" -ne 1 ]; then
-            echo "ERROR: WIA3300-10 sysupgrade image was not found."
-            echo "=== Available sysupgrade images ==="
-            find "$OUTDIR" -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print | sort || true
-            echo "=== Output directory ==="
-            ls -lah output
-            exit 1
-          fi
-
-          echo "=== Final firmware ==="
           ls -lh output
           test -n "$(find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' -print -quit)"
 
