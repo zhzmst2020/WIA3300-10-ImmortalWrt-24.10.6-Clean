@@ -16,6 +16,17 @@
         esac
         echo "$new_mac" > "$phy/macaddress" 2>/dev/null
     done
+    # WAN LED: link + traffic activity on the WIA3300-10 WAN netdev
+    uci -q delete system.wan_led
+    uci set system.wan_led='led'
+    uci set system.wan_led.name='WAN'
+    uci set system.wan_led.sysfs='wia3300-10:green:wan'
+    uci set system.wan_led.trigger='netdev'
+    uci set system.wan_led.dev='wan'
+    uci set system.wan_led.mode='link tx rx'
+    uci commit system
+    /etc/init.d/led restart
+
     wifi down && wifi up
 ) &
 exit 0
