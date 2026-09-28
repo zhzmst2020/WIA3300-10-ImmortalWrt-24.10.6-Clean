@@ -85,13 +85,12 @@ jobs:
           echo "=== TARGET ==="
           grep -E '^CONFIG_TARGET_(ramips|ramips_mt7621|ramips_mt7621_DEVICE_skspruce_wia3300-10)=' .config
           echo "=== SELECTED PACKAGES ==="
-          grep -E '^CONFIG_PACKAGE_(luci|luci-ssl-openssl|luci-compat|opkg|kmod-mt7615-firmware|kmod-tun|kmod-ledtrig-netdev|kmod-usb3|kmod-usb-storage|block-mount|kmod-fs-ext4|kmod-fs-vfat|usbutils|kmod-nf-socket|kmod-nf-tproxy|kmod-nft-socket|kmod-nft-tproxy)=' .config || true
+          grep -E '^CONFIG_PACKAGE_(luci|luci-ssl-openssl|luci-compat|opkg|kmod-mt7615-firmware|kmod-tun|kmod-usb3|kmod-usb-storage|block-mount|kmod-fs-ext4|kmod-fs-vfat|usbutils|kmod-nf-socket|kmod-nf-tproxy|kmod-nft-socket|kmod-nft-tproxy)=' .config || true
           test "$(grep -c '^CONFIG_TARGET_ramips=y$' .config)" = "1"
           test "$(grep -c '^CONFIG_TARGET_ramips_mt7621=y$' .config)" = "1"
           test "$(grep -c '^CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y$' .config)" = "1"
           test "$(grep -c '^CONFIG_PACKAGE_luci-compat=y$' .config)" = "1"
           test "$(grep -c '^CONFIG_PACKAGE_kmod-tun=y$' .config)" = "1"
-          test "$(grep -c '^CONFIG_PACKAGE_kmod-ledtrig-netdev=y$' .config)" = "1"
 
       - name: Download sources
         working-directory: immortalwrt
