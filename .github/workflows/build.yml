@@ -1,53 +1,166 @@
-CONFIG_TARGET_ramips=y
-CONFIG_TARGET_ramips_mt7621=y
-CONFIG_TARGET_DEVICE_ramips_mt7621_DEVICE_skspruce_wia3300-10=y
+name: Build WIA3300-10 ImmortalWrt 24.10.6 Clean
 
-CONFIG_TARGET_ROOTFS_SQUASHFS=y
-CONFIG_TARGET_ROOTFS_TARGZ=n
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Build profile'
+        required: true
+        default: clean
+        type: choice
+        options:
+          - clean
+          - usb-storage
+          - usb-printer
+          - usb-download
+          - usb-extroot
+  push:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'config/**'
+      - 'patches/**'
 
-#
-# LuCI / basic system
-#
-CONFIG_PACKAGE_luci=y
-CONFIG_PACKAGE_luci-ssl-openssl=y
-CONFIG_PACKAGE_luci-compat=y
-CONFIG_PACKAGE_opkg=y
-CONFIG_PACKAGE_dnsmasq-full=y
+permissions:
+  contents: write
 
-#
-# Transparent proxy common kernel support
-# No proxy plugin/core is included.
-#
-CONFIG_PACKAGE_kmod-tun=y
-CONFIG_PACKAGE_kmod-nf-socket=y
-CONFIG_PACKAGE_kmod-nf-tproxy=y
-CONFIG_PACKAGE_kmod-nft-compat=y
-CONFIG_PACKAGE_kmod-nft-socket=y
-CONFIG_PACKAGE_kmod-nft-tproxy=y
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
 
-#
-# Common networking / userspace tools
-# These are optional base utilities only.
-#
-CONFIG_PACKAGE_ca-bundle=y
-CONFIG_PACKAGE_curl=y
-CONFIG_PACKAGE_wget=y
-CONFIG_PACKAGE_unzip=y
-CONFIG_PACKAGE_bash=y
-CONFIG_PACKAGE_ip-full=y
-CONFIG_PACKAGE_ipset=y
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
 
-#
-# Wi-Fi
-#
-CONFIG_PACKAGE_kmod-mt7615-firmware=y
+      - name: Prepare build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gettext git libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget xsltproc swig time
 
-#
-# USB / storage
-#
-CONFIG_PACKAGE_kmod-usb3=y
-CONFIG_PACKAGE_kmod-usb-storage=y
-CONFIG_PACKAGE_block-mount=y
-CONFIG_PACKAGE_kmod-fs-ext4=y
-CONFIG_PACKAGE_kmod-fs-vfat=y
-CONFIG_PACKAGE_usbutils=y
+      - name: Clone ImmortalWrt 24.10.6
+        run: |
+          git clone --depth 1 --branch v24.10.6 https://github.com/immortalwrt/immortalwrt.git immortalwrt
+          test "$(git -C immortalwrt describe --tags --exact-match)" = "v24.10.6"
+
+      - name: Prepare feeds
+        working-directory: immortalwrt
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Install WIA3300-10 board files
+        run: |
+          cp patches/mt7621_skspruce_wia3300-10.dts immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
+          cat patches/mt7621.mk.append >> immortalwrt/target/linux/ramips/image/mt7621.mk
+          mkdir -p immortalwrt/files/etc
+          cp patches/rc.local immortalwrt/files/etc/rc.local
+          chmod 0755 immortalwrt/files/etc/rc.local
+
+      - name: Verify board definition
+        run: |
+          test -f immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
+          grep -n '^define Device/skspruce_wia3300-10$' immortalwrt/target/linux/ramips/image/mt7621.mk
+          grep -n '^TARGET_DEVICES += skspruce_wia3300-10$' immortalwrt/target/linux/ramips/image/mt7621.mk
+          test -f immortalwrt/files/etc/rc.local
+
+      - name: Apply build configuration
+        env:
+          PROFILE: ${{ github.event.inputs.profile || 'clean' }}
+        run: |
+          cp config/wia3300-10.config immortalwrt/.config
+          case "$PROFILE" in
+            clean) ;;
+            usb-storage|usb-printer|usb-download|usb-extroot)
+              cat "config/profiles/$PROFILE.config" >> immortalwrt/.config
+              ;;
+            *) echo "ERROR: unsupported profile: $PROFILE"; exit 1 ;;
+          esac
+          echo "Selected profile: $PROFILE"
+
+      - name: Generate final configuration
+        working-directory: immortalwrt
+        run: |
+          make defconfig
+          echo 'CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y' >> .config
+
+          echo "=== TARGET ==="
+          grep -E '^CONFIG_TARGET_(ramips|ramips_mt7621|ramips_mt7621_DEVICE_skspruce_wia3300-10)=' .config || true
+
+          echo "=== BASIC / LUCI ==="
+          grep -E '^CONFIG_PACKAGE_(luci|luci-ssl-openssl|luci-compat|opkg|dnsmasq-full)=' .config || true
+
+          echo "=== PROXY COMMON KERNEL SUPPORT ==="
+          grep -E '^CONFIG_PACKAGE_(kmod-tun|kmod-nf-socket|kmod-nf-tproxy|kmod-nft-compat|kmod-nft-socket|kmod-nft-tproxy|kmod-inet-diag|kmod-netlink-diag)=' .config || true
+
+          echo "=== NETWORK / DOWNLOAD UTILITIES ==="
+          grep -E '^CONFIG_PACKAGE_(ca-bundle|curl|wget|unzip|bash|ip-full|ipset)=' .config || true
+
+          echo "=== WIFI / USB ==="
+          grep -E '^CONFIG_PACKAGE_(kmod-mt7615-firmware|kmod-usb3|kmod-usb-storage|block-mount|kmod-fs-ext4|kmod-fs-vfat|usbutils)=' .config || true
+
+          echo "=== PROXY PLUGIN BODY CHECK ==="
+          if grep -Eq '^CONFIG_PACKAGE_(luci-app-openclash|luci-app-passwall|luci-app-passwall2|luci-app-ssr-plus|sing-box|xray-core|v2ray-core)=' .config; then
+            echo "ERROR: proxy plugin/core unexpectedly selected."
+            grep -E '^CONFIG_PACKAGE_(luci-app-openclash|luci-app-passwall|luci-app-passwall2|luci-app-ssr-plus|sing-box|xray-core|v2ray-core)=' .config
+            exit 1
+          fi
+          echo "OK: clean proxy base confirmed."
+
+          echo "=== REQUIRED BASE CHECK ==="
+          test "$(grep -c '^CONFIG_TARGET_ramips=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_TARGET_ramips_mt7621=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_PACKAGE_luci-compat=y$' .config)" = "1"
+          test "$(grep -c '^CONFIG_PACKAGE_kmod-tun=y$' .config)" = "1"
+
+          echo "BASE CONFIGURATION CHECK PASSED"
+
+      - name: Download sources
+        working-directory: immortalwrt
+        run: |
+          make download -j8
+
+      - name: Build firmware
+        working-directory: immortalwrt
+        run: |
+          make -j$(nproc) V=s
+
+      - name: Verify and collect firmware
+        run: |
+          set -eu
+          OUTDIR="immortalwrt/bin/targets/ramips/mt7621"
+          test -d "$OUTDIR"
+          ls -lah "$OUTDIR"
+          find "$OUTDIR" -maxdepth 1 -type f \( -name '*.bin' -o -name '*.itb' -o -name '*.img' \) -print | sort
+
+          mkdir -p output
+          found=0
+          for f in "$OUTDIR"/*squashfs-sysupgrade.bin; do
+            [ -f "$f" ] || continue
+            if printf '%s\n' "$(basename "$f")" | grep -Eq 'skspruce_wia3300-10.*squashfs-sysupgrade\.bin'; then
+              cp -f "$f" output/
+              found=1
+            fi
+          done
+
+          if [ "$found" -ne 1 ]; then
+            echo "ERROR: WIA3300-10 sysupgrade image was not found."
+            find "$OUTDIR" -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print | sort || true
+            exit 1
+          fi
+
+          ls -lh output
+          test -n "$(find output -maxdepth 1 -type f -name '*skspruce_wia3300-10*squashfs-sysupgrade.bin' -print -quit)"
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
+          path: output/*
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
+          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
+          files: output/*
