@@ -1,0 +1,14 @@
+config global 'automount'
+	option from_fstab '1'
+	option anon_mount '1'
+
+config global 'autoswap'
+	option from_fstab '1'
+	option anon_swap '1'
+
+config mount 'usb_sda1'
+	option target '/mnt/sda1'
+	option device '/dev/sda1'
+	option fstype 'ext4'
+	option options 'rw,sync'
+	ooption enabled '1'
