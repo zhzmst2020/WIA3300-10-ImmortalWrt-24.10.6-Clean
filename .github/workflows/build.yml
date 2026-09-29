@@ -168,3 +168,5 @@ jobs:
           tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
           name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
           files: output/*
+
+# Triggered for the corrected USB auto-mount fstab integration.
