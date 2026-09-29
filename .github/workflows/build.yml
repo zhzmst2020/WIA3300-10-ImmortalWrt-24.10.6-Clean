@@ -67,25 +67,82 @@ jobs:
           test -f immortalwrt/files/etc/rc.local
           test -f immortalwrt/files/etc/config/fstab
 
-      - name: Apply build configuration
-        env:
-          PROFILE: ${{ github.event.inputs.profile || 'clean' }}
+      - name: Apply official ImmortalWrt 24.10.6 MT7621 build config
+        working-directory: immortalwrt
         run: |
-          cp config/wia3300-10.config immortalwrt/.config
+          wget -qO .config https://mirrors.vsean.net/openwrt/releases/24.10.6/targets/ramips/mt7621/config.buildinfo
+          test -s .config
+
+          cat >> .config <<'EOF'
+          CONFIG_TARGET_ramips=y
+          CONFIG_TARGET_ramips_mt7621=y
+          CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y
+
+          CONFIG_TARGET_ROOTFS_SQUASHFS=y
+          CONFIG_TARGET_ROOTFS_TARGZ=n
+
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-ssl-openssl=y
+          CONFIG_PACKAGE_luci-compat=y
+          CONFIG_PACKAGE_opkg=y
+          CONFIG_PACKAGE_dnsmasq-full=y
+
+          CONFIG_PACKAGE_kmod-tun=y
+          CONFIG_PACKAGE_kmod-nf-socket=y
+          CONFIG_PACKAGE_kmod-nf-tproxy=y
+          CONFIG_PACKAGE_kmod-nft-compat=y
+          CONFIG_PACKAGE_kmod-nft-socket=y
+          CONFIG_PACKAGE_kmod-nft-tproxy=y
+
+          CONFIG_PACKAGE_ca-bundle=y
+          CONFIG_PACKAGE_curl=y
+          CONFIG_PACKAGE_wget=y
+          CONFIG_PACKAGE_unzip=y
+          CONFIG_PACKAGE_bash=y
+          CONFIG_PACKAGE_ip-full=y
+          CONFIG_PACKAGE_ipset=y
+          CONFIG_PACKAGE_lsblk=y
+
+          CONFIG_PACKAGE_kmod-mt7615-firmware=y
+
+          CONFIG_PACKAGE_kmod-usb3=y
+          CONFIG_PACKAGE_kmod-usb-storage=y
+          CONFIG_PACKAGE_block-mount=y
+          CONFIG_PACKAGE_kmod-fs-ext4=y
+          CONFIG_PACKAGE_kmod-fs-vfat=y
+          CONFIG_PACKAGE_usbutils=y
+          EOF
+
+          PROFILE="${{ github.event.inputs.profile || 'clean' }}"
           case "$PROFILE" in
             clean) ;;
             usb-storage|usb-printer|usb-download|usb-extroot)
-              cat "config/profiles/$PROFILE.config" >> immortalwrt/.config
+              cat "../config/profiles/$PROFILE.config" >> .config
               ;;
             *) echo "ERROR: unsupported profile: $PROFILE"; exit 1 ;;
           esac
+
           echo "Selected profile: $PROFILE"
+
+      - name: Configure kmods feed for official 24.10.6 MT7621 ABI
+        working-directory: immortalwrt
+        run: |
+          mkdir -p files/etc/opkg
+          cat > files/etc/opkg/distfeeds.conf <<'EOF'
+          src/gz immortalwrt_core https://mirrors.vsean.net/openwrt/releases/24.10.6/targets/ramips/mt7621/packages
+          src/gz immortalwrt_base https://mirrors.vsean.net/openwrt/releases/24.10.6/packages/mipsel_24kc/base
+          src/gz immortalwrt_kmods https://mirrors.vsean.net/openwrt/releases/24.10.6/targets/ramips/mt7621/kmods/6.6.133-1-a95b5fe6479b39bda05768a97fa8cf60
+          src/gz immortalwrt_luci https://mirrors.vsean.net/openwrt/releases/24.10.6/packages/mipsel_24kc/luci
+          src/gz immortalwrt_packages https://mirrors.vsean.net/openwrt/releases/24.10.6/packages/mipsel_24kc/packages
+          src/gz immortalwrt_routing https://mirrors.vsean.net/openwrt/releases/24.10.6/packages/mipsel_24kc/routing
+          src/gz immortalwrt_telephony https://mirrors.vsean.net/openwrt/releases/24.10.6/packages/mipsel_24kc/telephony
+          EOF
+          test -s files/etc/opkg/distfeeds.conf
 
       - name: Generate final configuration
         working-directory: immortalwrt
         run: |
           make defconfig
-          echo 'CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y' >> .config
 
           echo "=== TARGET ==="
           grep -E '^CONFIG_TARGET_(ramips|ramips_mt7621|ramips_mt7621_DEVICE_skspruce_wia3300-10)=' .config || true
@@ -116,6 +173,7 @@ jobs:
           test "$(grep -c '^CONFIG_TARGET_ramips_mt7621_DEVICE_skspruce_wia3300-10=y$' .config)" = "1"
           test "$(grep -c '^CONFIG_PACKAGE_luci-compat=y$' .config)" = "1"
           test "$(grep -c '^CONFIG_PACKAGE_kmod-tun=y$' .config)" = "1"
+          test -s files/etc/opkg/distfeeds.conf
 
           echo "BASE CONFIGURATION CHECK PASSED"
 
@@ -128,6 +186,25 @@ jobs:
         working-directory: immortalwrt
         run: |
           make -j$(nproc) V=s
+
+      - name: Verify official MT7621 kernel ABI
+        working-directory: immortalwrt
+        run: |
+          set -eu
+          OUTDIR="bin/targets/ramips/mt7621"
+          EXPECTED="6.6.133~a95b5fe6479b39bda05768a97fa8cf60-r1"
+
+          echo "=== BUILT KERNEL PACKAGE ==="
+          find "$OUTDIR/packages" -maxdepth 1 -type f -name 'kernel_*.ipk' -print | sort || true
+
+          KERNEL_IPK="$(find "$OUTDIR/packages" -maxdepth 1 -type f -name 'kernel_*.ipk' -print -quit)"
+          test -n "$KERNEL_IPK"
+
+          KERNEL_BASENAME="$(basename "$KERNEL_IPK")"
+          echo "Built kernel package: $KERNEL_BASENAME"
+
+          echo "$KERNEL_BASENAME" | grep -F "kernel_$EXPECTED"_mipsel_24kc.ipk
+          echo "OK: kernel ABI matches official ImmortalWrt 24.10.6 MT7621 kmods."
 
       - name: Verify and collect firmware
         run: |
@@ -169,4 +246,4 @@ jobs:
           name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
           files: output/*
 
-# Triggered for the corrected USB auto-mount fstab integration.
+# Build workflow uses the official ImmortalWrt 24.10.6 MT7621 config as the kernel ABI baseline.
