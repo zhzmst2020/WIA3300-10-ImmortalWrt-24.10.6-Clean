@@ -19,6 +19,7 @@ on:
       - '.github/workflows/build.yml'
       - 'config/**'
       - 'patches/**'
+      - 'files/**'
 
 permissions:
   contents: write
@@ -52,9 +53,11 @@ jobs:
         run: |
           cp patches/mt7621_skspruce_wia3300-10.dts immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
           cat patches/mt7621.mk.append >> immortalwrt/target/linux/ramips/image/mt7621.mk
-          mkdir -p immortalwrt/files/etc
+          mkdir -p immortalwrt/files/etc/config
           cp patches/rc.local immortalwrt/files/etc/rc.local
+          cp files/etc/config/fstab immortalwrt/files/etc/config/fstab
           chmod 0755 immortalwrt/files/etc/rc.local
+          test -f immortalwrt/files/etc/config/fstab
 
       - name: Verify board definition
         run: |
@@ -62,6 +65,7 @@ jobs:
           grep -n '^define Device/skspruce_wia3300-10$' immortalwrt/target/linux/ramips/image/mt7621.mk
           grep -n '^TARGET_DEVICES += skspruce_wia3300-10$' immortalwrt/target/linux/ramips/image/mt7621.mk
           test -f immortalwrt/files/etc/rc.local
+          test -f immortalwrt/files/etc/config/fstab
 
       - name: Apply build configuration
         env:
@@ -93,7 +97,7 @@ jobs:
           grep -E '^CONFIG_PACKAGE_(kmod-tun|kmod-nf-socket|kmod-nf-tproxy|kmod-nft-compat|kmod-nft-socket|kmod-nft-tproxy|kmod-inet-diag|kmod-netlink-diag)=' .config || true
 
           echo "=== NETWORK / DOWNLOAD UTILITIES ==="
-          grep -E '^CONFIG_PACKAGE_(ca-bundle|curl|wget|unzip|bash|ip-full|ipset)=' .config || true
+          grep -E '^CONFIG_PACKAGE_(ca-bundle|curl|wget|unzip|bash|ip-full|ipset|lsblk)=' .config || true
 
           echo "=== WIFI / USB ==="
           grep -E '^CONFIG_PACKAGE_(kmod-mt7615-firmware|kmod-usb3|kmod-usb-storage|block-mount|kmod-fs-ext4|kmod-fs-vfat|usbutils)=' .config || true
