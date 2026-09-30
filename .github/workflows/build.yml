@@ -79,11 +79,9 @@ jobs:
           wget -qO .config https://mirrors.vsean.net/openwrt/releases/24.10.6/targets/ramips/mt7621/config.buildinfo
           test -s .config
 
-          # The MT7621 buildinfo currently pulls in the unrelated Motorcomm YT6801
-          # DKMS Ethernet driver. WIA3300-10 uses the built-in MT7621 GMAC/switch,
-          # so do not build this unrelated driver (it is incompatible with 6.6.133).
+          # WIA3300-10 uses the MT7621 GMAC/switch, not Motorcomm YT6801.
+          # Remove the unrelated YT6801 package inherited from the generic buildinfo.
           sed -i '/^CONFIG_PACKAGE_kmod-yt6801=/d' .config
-          sed -i '/^CONFIG_PACKAGE_yt6801-dkms=/d' .config
 
           cat >> .config <<'EOF'
 
@@ -120,9 +118,7 @@ jobs:
 
           CONFIG_PACKAGE_kmod-mt7615-firmware=y
 
-          # Explicitly exclude unrelated Motorcomm YT6801 driver.
           # CONFIG_PACKAGE_kmod-yt6801 is not set
-          # CONFIG_PACKAGE_yt6801-dkms is not set
 
           CONFIG_PACKAGE_kmod-usb3=y
           CONFIG_PACKAGE_kmod-usb-storage=y
@@ -170,7 +166,7 @@ jobs:
           echo "========================================"
           echo "UNRELATED DRIVER CHECK"
           echo "========================================"
-          if grep -Eq '^CONFIG_PACKAGE_(kmod-yt6801|yt6801-dkms)=y          grep -E '^(CONFIG_INET_DIAG|CONFIG_INET_TCP_DIAG|CONFIG_INET_UDP_DIAG|CONFIG_INET_RAW_DIAG)=' .config || true
+          if grep -q '^CONFIG_PACKAGE_kmod-yt6801=y          grep -E '^(CONFIG_INET_DIAG|CONFIG_INET_TCP_DIAG|CONFIG_INET_UDP_DIAG|CONFIG_INET_RAW_DIAG)=' .config || true
 
           echo "BASE CONFIGURATION CHECK PASSED"
 
@@ -281,7 +277,6 @@ jobs:
           files: output/*
  .config; then
             echo "ERROR: unrelated YT6801 driver is still selected."
-            grep -E '^CONFIG_PACKAGE_(kmod-yt6801|yt6801-dkms)=' .config || true
             exit 1
           fi
           echo "OK: YT6801 driver excluded."
