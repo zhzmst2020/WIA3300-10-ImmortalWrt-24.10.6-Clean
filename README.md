@@ -1,3 +1,5 @@
+<img width="1319" height="1794" alt="mm_facetoface_collect_qrcode_1790965343705" src="https://github.com/user-attachments/assets/8d0f1de4-3071-4445-aa62-fe50124d89b6" />
+<img width="1080" height="1620" alt="1790965237559" src="https://github.com/user-attachments/assets/8388122e-1183-4e68-819b-59b26836820e" />
 # WIA3300-10 ImmortalWrt 24.10.6 Clean
 
 Target: Skspruce WIA3300-10 / MediaTek MT7621 / ramips-mt7621.
@@ -35,3 +37,18 @@ The clean image keeps the relevant nft/socket/tproxy kernel modules available as
 - MT7615 2.4G/5G
 - USB 3.0
 - WIA3300-10 factory MAC handling
+项目支持
+
+本项目为开源项目。
+
+WIA3300-10 的硬件适配、固件编译、实机测试、问题排查和持续维护需要投入时间与精力。
+
+如果本项目对你有帮助，欢迎自愿支持项目后续维护。
+
+支持作者
+
+支付宝![支付宝](这里放支付![支付宝](alipay.png)图片文件名)
+
+微信支付![微信支付](这里放微信![微信支付](wechat.png)文件名)
+
+赞助完全自愿，不影响固件使用、下载或源码获取。
