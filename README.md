@@ -100,6 +100,171 @@ WIA3300-10 的硬件适配、固件编译、实机刷写、USB/存储、Extroot�
 - Extroot
 - 外置软件包和插件空间
 
+### U盘扩展（Extroot）
+
+WIA3300-10 推荐使用 **ImmortalWrt 原生 Extroot** 扩展存储。
+
+> ⚠️ **注意：** 以下操作会格式化 U 盘，U 盘中的原有数据将被清除。请确认 U 盘设备节点后再操作。
+
+#### 1. 安装扩展所需软件
+
+SSH 登录路由器后执行：
+
+```sh
+opkg update
+opkg install block-mount kmod-usb-storage kmod-fs-ext4 e2fsprogs kmod-fs-vfat
+```
+
+#### 2. 查看 U 盘设备
+
+执行：
+
+```sh
+block info
+```
+
+确认 U 盘分区，例如：
+
+```text
+/dev/sda1
+```
+
+以下步骤以 `/dev/sda1` 为例。
+
+#### 3. 格式化 U 盘
+
+先卸载 U 盘分区：
+
+```sh
+umount /dev/sda1
+```
+
+格式化为 ext4：
+
+```sh
+mkfs.ext4 /dev/sda1
+```
+
+格式化完成后重新查看 UUID：
+
+```sh
+block info
+```
+
+找到 `/dev/sda1` 对应的 UUID，并记录下来。
+
+例如：
+
+```text
+UUID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+```
+
+#### 4. 临时挂载 U 盘
+
+创建临时挂载目录：
+
+```sh
+mkdir /mnt/extroot
+```
+
+挂载 U 盘：
+
+```sh
+mount /dev/sda1 /mnt/extroot
+```
+
+确认挂载成功：
+
+```sh
+df -h
+```
+
+应该能够看到 `/mnt/extroot`。
+
+#### 5. 复制当前 Overlay 数据
+
+将当前系统的可写层复制到 U 盘：
+
+```sh
+tar -C /overlay -cvf - . | tar -C /mnt/extroot -xf -
+```
+
+> 这里只复制当前 `/overlay` 数据，不复制整个 `/rom` 固件系统。
+
+#### 6. 配置 Extroot
+
+删除旧的 Extroot 配置：
+
+```sh
+uci -q delete fstab.extroot
+```
+
+创建新的挂载配置：
+
+```sh
+uci set fstab.extroot='mount'
+uci set fstab.extroot.uuid='你的U盘UUID'
+uci set fstab.extroot.target='/overlay'
+uci set fstab.extroot.enabled='1'
+uci commit fstab
+```
+
+将 `你的U盘UUID` 替换成第 3 步查询到的实际 UUID。
+
+#### 7. 重启路由器
+
+```sh
+reboot
+```
+
+等待路由器重新启动后，重新进入 LuCI 管理页面。
+
+#### 8. 在 LuCI「挂载点」中添加挂载点
+
+进入：
+
+**系统 → 挂载点**
+
+在挂载点页面添加 U 盘挂载点。
+
+选择第 3 步记录的 U 盘 UUID，挂载点设置为：
+
+```text
+/overlay
+```
+
+启用该挂载点并保存、应用配置。
+
+> 如果页面中已经存在对应的 `/overlay` 挂载配置，则检查 UUID、挂载点和启用状态即可，不需要重复创建。
+
+#### 9. 检查 Extroot 是否生效
+
+重新 SSH 登录路由器，执行：
+
+```sh
+df -h
+```
+
+正常情况下可以看到类似：
+
+```text
+/dev/root              ...  /rom
+/dev/sda1              ...  /overlay
+overlayfs:/overlay     ...  /
+```
+
+其中：
+
+- `/rom`：路由器原有固件，只读
+- `/overlay`：U 盘提供的可写空间
+- `/`：最终运行的 OverlayFS 根文件系统
+
+看到 U 盘挂载到 `/overlay`，即可确认 Extroot 扩容成功。
+
+> **本项目推荐使用 ImmortalWrt 原生 Extroot，不需要将整个根文件系统复制到 U 盘。**
+
+### GitHub Actions 扩展配置
+
 GitHub Actions 提供可选配置：
 
 | Profile | 用途 |
