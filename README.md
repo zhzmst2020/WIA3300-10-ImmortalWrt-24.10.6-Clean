@@ -243,6 +243,88 @@ reboot
 
 > **本项目推荐使用 ImmortalWrt 原生 Extroot，不需要将整个根文件系统复制到 U 盘。**
 
+---
+
+## 插件与内核安装
+
+Extroot 完成后，可以根据需要安装 OpenClash 和 PassWall。
+
+> **本节记录的是本项目在 WIA3300-10 + ImmortalWrt 24.10.6 环境中实际验证过的安装方式。不同版本软件的页面和安装方式可能有所变化。**
+
+### OpenClash
+
+1. 在 LuCI 页面安装 **OpenClash** 本体，可按实际页面提供的方式上传软件包或从软件源安装。
+2. OpenClash 本体安装完成后，**不需要重启路由器**。
+3. 退出当前 LuCI 登录页面，刷新浏览器后重新登录路由器后台。
+4. 此时 OpenClash 菜单即可正常出现。
+5. 进入 **服务 → OpenClash**，按页面提示安装 **Meta 内核**。
+
+> OpenClash 的 Meta 内核直接按页面提示安装即可，不需要通过 SSH 手动安装。
+
+### PassWall
+
+#### PassWall 本体
+
+PassWall 本体可以直接在 LuCI 页面安装：
+
+- 上传对应的 `.ipk` 软件包安装；或
+- 从软件源搜索并安装。
+
+安装完成后进入 **服务 → PassWall** 即可。
+
+#### PassWall 内核
+
+PassWall 的 Xray、Sing-box、Hysteria 等核心，**不要依赖 PassWall 页面中的“软件更新”来安装**。
+
+在本项目当前环境中，推荐通过 **SSH** 安装所需核心。
+
+例如：
+
+```sh
+opkg update
+opkg install xray-core
+```
+
+```sh
+opkg install sing-box
+```
+
+```sh
+opkg install hysteria
+```
+
+Geoview 如有需要，也可通过 SSH 安装：
+
+```sh
+opkg install geoview
+```
+
+实际使用时**缺哪个安装哪个，已经安装的核心不要重复安装**。
+
+> **重要：** PassWall 页面中的内核更新失败，不代表固件无法安装或运行这些核心。当前环境实测通过 SSH 安装核心可以正常使用。
+
+> **不要为了更新核心而随意更换本项目的软件源，也不要在没有明确缺失依赖证据的情况下批量补装依赖。** 本项目固件已经预置相关基础运行环境，正常情况下应保持软件源和系统环境稳定。
+
+---
+
+### 推荐安装组合
+
+对于 WIA3300-10 的 256MB RAM + 32MB Flash 平台，本项目已经实际测试过以下组合：
+
+- OpenClash
+- OpenClash Meta 内核
+- PassWall
+- Geoview
+- Xray
+- Sing-box
+- Hysteria
+
+在使用 256M U 盘进行 Extroot 后，上述组合仍保留了较充足的可用空间。
+
+> **扩容不是越大越好，而是看设备实际需要多少。** 对 WIA3300-10 而言，256M U 盘已经能够满足这套软件与核心组合的实际使用需求；更大的 U 盘可以留给更适合大容量扩展的设备。
+
+> 本项目教程的目的，是把已经实际踩过并解决的问题记录下来，尽量避免后来使用者重复踩坑。
+
 ### GitHub Actions 扩展配置
 
 GitHub Actions 提供可选配置：
