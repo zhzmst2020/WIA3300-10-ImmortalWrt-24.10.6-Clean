@@ -237,29 +237,9 @@ reboot
 
 > 如果页面中已经存在对应的 `/overlay` 挂载配置，则检查 UUID、挂载点和启用状态即可，不需要重复创建。
 
-#### 9. 检查 Extroot 是否生效
+完成挂载点配置并应用后，Extroot 即完成。
 
-重新 SSH 登录路由器，执行：
-
-```sh
-df -h
-```
-
-正常情况下可以看到类似：
-
-```text
-/dev/root              ...  /rom
-/dev/sda1              ...  /overlay
-overlayfs:/overlay     ...  /
-```
-
-其中：
-
-- `/rom`：路由器原有固件，只读
-- `/overlay`：U 盘提供的可写空间
-- `/`：最终运行的 OverlayFS 根文件系统
-
-看到 U 盘挂载到 `/overlay`，即可确认 Extroot 扩容成功。
+此时可直接在 LuCI 页面查看可用存储空间，确认软件包/可写空间已经转移到 U 盘。
 
 > **本项目推荐使用 ImmortalWrt 原生 Extroot，不需要将整个根文件系统复制到 U 盘。**
 
