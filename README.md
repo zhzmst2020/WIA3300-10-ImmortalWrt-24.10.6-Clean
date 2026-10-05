@@ -124,7 +124,7 @@ GitHub Actions 提供可选配置：
 | Ethernet | DSA |
 | Ports | LAN1 / LAN2 / LAN3 / LAN4 / WAN |
 | Wi-Fi | MediaTek MT7615 2.4GHz / 5GHz |
-| USB | USB 3.0 |
+| USB | USB 2.0 |
 | Target | ramips/mt7621 |
 | Device | skspruce_wia3300-10 |
 
