@@ -104,7 +104,9 @@ WIA3300-10 的硬件适配、固件编译、实机刷写、USB/存储、Extroot�
 
 WIA3300-10 推荐使用 **ImmortalWrt 原生 Extroot** 扩展存储。
 
-> ⚠️ **注意：** 以下操作会格式化 U 盘，U 盘中的原有数据将被清除。请确认 U 盘设备节点后再操作。
+> ⚠️ **重要：以下步骤会格式化 U 盘，U 盘中的原有数据将被清除。请先确认 U 盘设备节点。**
+>
+> **本教程只适用于标准的 SquashFS + JFFS2 Overlay 环境。不要同时使用其他 OverlayFS/upper/work 教程。**
 
 #### 1. 安装扩展所需软件
 
@@ -112,7 +114,7 @@ SSH 登录路由器后执行：
 
 ```sh
 opkg update
-opkg install block-mount kmod-usb-storage kmod-fs-ext4 e2fsprogs kmod-fs-vfat
+opkg install block-mount kmod-usb-storage kmod-fs-ext4 e2fsprogs
 ```
 
 #### 2. 查看 U 盘设备
@@ -129,11 +131,11 @@ block info
 /dev/sda1
 ```
 
-以下步骤以 `/dev/sda1` 为例。
+**下面所有命令均以 `/dev/sda1` 为例。你的设备节点不同就必须替换。**
 
 #### 3. 格式化 U 盘
 
-先卸载 U 盘分区：
+先卸载：
 
 ```sh
 umount /dev/sda1
@@ -145,103 +147,147 @@ umount /dev/sda1
 mkfs.ext4 /dev/sda1
 ```
 
-格式化完成后重新查看 UUID：
+格式化完成后重新查询 UUID：
 
 ```sh
 block info
 ```
 
-找到 `/dev/sda1` 对应的 UUID，并记录下来。
-
-例如：
-
-```text
-UUID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-```
+找到 `/dev/sda1` 对应的实际 UUID。
 
 #### 4. 临时挂载 U 盘
 
-创建临时挂载目录：
+创建临时目录并挂载：
 
 ```sh
-mkdir /mnt/extroot
-```
-
-挂载 U 盘：
-
-```sh
+mkdir -p /mnt/extroot
 mount /dev/sda1 /mnt/extroot
 ```
 
-确认挂载成功：
+确认：
 
 ```sh
-df -h
+df -h /mnt/extroot
 ```
-
-应该能够看到 `/mnt/extroot`。
 
 #### 5. 复制当前 Overlay 数据
 
-将当前系统的可写层复制到 U 盘：
+**这一步必须在配置 Extroot 之前完成。**
+
+执行：
 
 ```sh
 tar -C /overlay -cvf - . | tar -C /mnt/extroot -xf -
 ```
 
-> 这里只复制当前 `/overlay` 数据，不复制整个 `/rom` 固件系统。
+复制完成后检查：
 
-#### 6. 配置 Extroot
+```sh
+ls -la /mnt/extroot
+```
 
-删除旧的 Extroot 配置：
+应该能看到当前 Overlay 中的配置文件和目录。
+
+#### 6. 自动写入 Extroot 配置（不要手抄 UUID）
+
+**不要把“你的U盘UUID”之类的占位文字直接写进 `/etc/config/fstab`。**
+
+先自动读取 `/dev/sda1` 的 UUID：
+
+```sh
+UUID="$(block info /dev/sda1 | sed -n 's/.*UUID="\\([^"]*\\)".*/\\1/p')"
+```
+
+检查：
+
+```sh
+echo "$UUID"
+```
+
+必须显示真实 UUID。如果没有任何输出，**停止操作，不要继续重启**。
+
+确认 UUID 正确后，执行：
 
 ```sh
 uci -q delete fstab.extroot
-```
-
-创建新的挂载配置：
-
-```sh
 uci set fstab.extroot='mount'
-uci set fstab.extroot.uuid='你的U盘UUID'
+uci set fstab.extroot.uuid="$UUID"
 uci set fstab.extroot.target='/overlay'
 uci set fstab.extroot.enabled='1'
 uci commit fstab
 ```
 
-将 `你的U盘UUID` 替换成第 3 步查询到的实际 UUID。
+检查配置：
 
-#### 7. 重启路由器
+```sh
+uci show fstab.extroot
+```
+
+结果中的 `uuid` 必须是刚才查询到的真实 UUID，而不是“你的U盘UUID”。
+
+#### 7. 解除临时挂载并重启
+
+先卸载临时挂载：
+
+```sh
+umount /mnt/extroot
+```
+
+然后重启：
 
 ```sh
 reboot
 ```
 
-等待路由器重新启动后，重新进入 LuCI 管理页面。
+#### 8. 重启后验证 Extroot 是否成功
 
-#### 8. 在 LuCI「挂载点」中添加挂载点
+路由器重新启动并 SSH 登录后，执行：
 
-进入：
-
-**系统 → 挂载点**
-
-在挂载点页面添加 U 盘挂载点。
-
-选择第 3 步记录的 U 盘 UUID，挂载点设置为：
-
-```text
-/overlay
+```sh
+df -h
 ```
 
-启用该挂载点并保存、应用配置。
+**成功的判断标准：**
 
-> 如果页面中已经存在对应的 `/overlay` 挂载配置，则检查 UUID、挂载点和启用状态即可，不需要重复创建。
+- `/` 不再只有内部 Flash 的约 19MB Overlay 容量；
+- `/overlay` 应该由 U 盘的 ext4 分区提供；
+- U 盘容量应明显出现在 `/` 或 `/overlay` 的可用空间中。
 
-完成挂载点配置并应用后，Extroot 即完成。
+再执行：
 
-此时可直接在 LuCI 页面查看可用存储空间，确认软件包/可写空间已经转移到 U 盘。
+```sh
+mount
+```
 
-> **本项目推荐使用 ImmortalWrt 原生 Extroot，不需要将整个根文件系统复制到 U 盘。**
+确认 U 盘已经作为 Overlay 的底层存储参与系统根文件系统。
+
+如果重启后仍然看到：
+
+```text
+/dev/mtdblock6 ... /overlay
+/dev/sda1 ... /mnt/sda1
+```
+
+而不是 U 盘参与 Overlay，说明 Extroot 没有成功，**不要继续重复执行配置命令**，先检查启动日志和 fstab。
+
+> **特别注意：不要在 Extroot 配置完成后，再在 LuCI「系统 → 挂载点」里重复创建一个 `/overlay` 挂载点。**
+>
+> `/overlay` 的 Extroot 配置已经由 `/etc/config/fstab` 完成。重复添加挂载可能造成冲突。
+
+#### 9. 关于 `upper` / `work`
+
+本项目的标准 Extroot 教程**不要求手动创建**：
+
+```text
+/mnt/sda1/upper
+/mnt/sda1/work
+```
+
+也不要把“创建 upper/work 并手动拼接 OverlayFS”与本教程的原生 Extroot 方案混用。
+
+> **核心原则：一个 U 盘只使用一种 Overlay 扩展方案。**
+>
+> 本项目选择的是 ImmortalWrt 原生 Extroot：**复制当前 `/overlay` → U 盘 → `/etc/config/fstab` 指向 U 盘 UUID 和 `/overlay` → 重启验证。**
 
 ---
 
