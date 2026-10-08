@@ -62,11 +62,9 @@ jobs:
           cat patches/mt7621.mk.append >> immortalwrt/target/linux/ramips/image/mt7621.mk
           mkdir -p immortalwrt/files/etc/config
           cp patches/rc.local immortalwrt/files/etc/rc.local
-          cp files/etc/config/fstab immortalwrt/files/etc/config/fstab
           chmod 0755 immortalwrt/files/etc/rc.local
           test -f immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
           test -f immortalwrt/files/etc/rc.local
-          test -f immortalwrt/files/etc/config/fstab
 
       - name: Verify board definition
         run: |
@@ -114,11 +112,11 @@ jobs:
           CONFIG_PACKAGE_lsblk=y
 
           CONFIG_PACKAGE_kmod-mt7615-firmware=y
-          # CONFIG_PACKAGE_kmod-yt6801 is not set
 
           CONFIG_PACKAGE_kmod-usb3=y
           CONFIG_PACKAGE_kmod-usb-storage=y
           CONFIG_PACKAGE_block-mount=y
+          CONFIG_PACKAGE_e2fsprogs=y
           CONFIG_PACKAGE_kmod-fs-ext4=y
           CONFIG_PACKAGE_kmod-fs-vfat=y
           CONFIG_PACKAGE_usbutils=y
@@ -135,6 +133,16 @@ jobs:
           echo "TARGET"
           echo "========================================"
           grep -E '^CONFIG_TARGET_(ramips|ramips_mt7621|ramips_mt7621_DEVICE_skspruce_wia3300-10)=' .config || true
+
+          echo "========================================"
+          echo "EXTROOT SUPPORT"
+          echo "========================================"
+          grep -E '^CONFIG_PACKAGE_(block-mount|e2fsprogs|kmod-usb-storage|kmod-fs-ext4)=' .config || true
+          grep -q '^CONFIG_PACKAGE_block-mount=y$' .config
+          grep -q '^CONFIG_PACKAGE_e2fsprogs=y$' .config
+          grep -q '^CONFIG_PACKAGE_kmod-usb-storage=y$' .config
+          grep -q '^CONFIG_PACKAGE_kmod-fs-ext4=y$' .config
+          echo "OK: native extroot filesystem packages selected."
 
           echo "========================================"
           echo "PROXY KERNEL SUPPORT"
@@ -197,7 +205,6 @@ jobs:
         working-directory: immortalwrt
         run: |
           set -eu
-
           OUTDIR="bin/targets/ramips/mt7621"
 
           echo "========================================"
@@ -219,7 +226,6 @@ jobs:
       - name: Verify firmware output
         run: |
           set -eu
-
           OUTDIR="immortalwrt/bin/targets/ramips/mt7621"
           test -d "$OUTDIR"
 
@@ -233,7 +239,6 @@ jobs:
 
           for f in "$OUTDIR"/*squashfs-sysupgrade.bin; do
             [ -f "$f" ] || continue
-
             if printf '%s\n' "$(basename "$f")" | grep -Eq 'skspruce_wia3300-10.*squashfs-sysupgrade\.bin'; then
               cp -f "$f" output/
               found=1
