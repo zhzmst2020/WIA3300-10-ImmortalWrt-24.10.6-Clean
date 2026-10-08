@@ -93,19 +93,18 @@ WIA3300-10 的硬件适配、固件编译、实机刷写、USB/存储、Extroot�
 项目针对 WIA3300-10 的 USB 扩展进行了实际测试。
 
 支持方向包括：
-
 - USB Storage
 - ext4 / vfat 等常用文件系统
-- 外置 Overlay
 - Extroot
 - 外置软件包和插件空间
 
 ### U盘扩展（Extroot）
 
-WIA3300-10 使用 **ImmortalWrt 原生 Extroot** 将外置 ext4 分区挂载为 `/overlay`，用于扩展插件和软件安装空间。
-**不使用手动 OverlayFS、`upper/work` 或 GL 官方扩展方案。**
+WIA3300-10 使用 **ImmortalWrt 原生 Extroot**，将外置 ext4 分区作为新的可写 Overlay，用于扩展插件和软件安装空间。
 
-> ⚠️ 以下“初始化”步骤会清空指定 U 盘分区。仅适用于全新 U 盘或确认可以清空的 U 盘。
+**本教程不使用 GL 官方整套系统搬迁方案，也不需要手动制作 OverlayFS。**
+
+> ⚠️ 以下步骤会清空指定 U 盘分区。确认 U 盘内没有需要保留的数据后再执行。
 
 #### 1. 安装依赖
 
@@ -114,16 +113,29 @@ opkg update
 opkg install block-mount kmod-usb-storage kmod-fs-ext4 e2fsprogs
 ```
 
-#### 2. 初始化 U 盘并配置 Extroot
+#### 2. 格式化 U 盘
 
 确认 U 盘分区为 `/dev/sda1` 后执行：
 
 ```sh
 DEVICE=/dev/sda1
-
 umount "$DEVICE" 2>/dev/null
 mkfs.ext4 "$DEVICE" || exit 1
+```
 
+重新获取 UUID：
+
+```sh
+block info "$DEVICE"
+```
+
+记下输出中的 `UUID="..."`。
+
+#### 3. 配置 Extroot
+
+执行：
+
+```sh
 UUID="$(block info "$DEVICE" | sed -n 's/.*UUID="\([^"]*\)".*/\1/p')"
 [ -n "$UUID" ] || { echo "ERROR: UUID not found"; exit 1; }
 
@@ -131,64 +143,68 @@ uci -q delete fstab.extroot
 uci set fstab.extroot='mount'
 uci set fstab.extroot.uuid="$UUID"
 uci set fstab.extroot.target='/overlay'
-uci set fstab.extroot.enabled='1'
 uci commit fstab
 
-echo "Extroot UUID: $UUID"
 uci show fstab.extroot
 ```
 
-确认 `uuid` 和实际 U 盘 UUID 一致后继续。
+确认显示的 UUID 与刚才 `block info` 得到的 UUID 一致，并且目标为：
 
-#### 3. 复制当前 Overlay
+```text
+target='/overlay'
+```
+
+#### 4. 将当前 Overlay 内容复制到 U盘
+
+先挂载 U 盘：
 
 ```sh
 mkdir -p /mnt/extroot
 mount "$DEVICE" /mnt/extroot || exit 1
+```
 
-tar -C /overlay -cf - . | tar -C /mnt/extroot -xf - || {
-    umount /mnt/extroot
-    exit 1
-}
+复制当前 Overlay：
 
+```sh
+tar -C /overlay -cf - . | tar -C /mnt/extroot -xf -
+```
+
+同步并卸载：
+
+```sh
 sync
 umount /mnt/extroot
 ```
 
-#### 4. 重启
+#### 5. 重启
 
 ```sh
 reboot
 ```
 
-#### 5. 验证
+#### 6. 验证
 
-重启后 SSH 执行：
+重启后执行：
 
 ```sh
 df -h / /overlay
+```
+
+再执行：
+
+```sh
 mount | grep -E '(/overlay|/dev/sda1)'
 ```
 
-成功时应看到：
+成功时，应该看到 U 盘分区挂载到 `/overlay`，并且 `/` 的可用空间明显增加。
 
-- `/dev/sda1` 挂载到 `/overlay`
-- `/` 和 `/overlay` 的可用空间明显增加
-- 不再是 `/dev/mtdblock6` 单独承担 `/overlay`
+**判断标准：**
 
-典型结构：
+- `/overlay` 来自 U 盘的 ext4 分区
+- `/` 的可用空间与 U 盘空间基本对应
+- LuCI → 系统 → 软件 中的软件安装空间明显增加
 
-```text
-/dev/sda1        /overlay
-overlayfs:/overlay /
-```
-
-#### 注意
-
-- **不要创建或手动管理 `/mnt/sda1/upper`、`/mnt/sda1/work`。**
-- **不要同时使用其他 OverlayFS 扩展教程。**
-- U 盘必须使用 ext2/3/4 等 Extroot 支持的文件系统；不要使用 FAT/FAT32。 citeturn1search0turn1search3
-- 如果 U 盘能够正常手动挂载，但重启后没有成为 `/overlay`，先检查：
+如果 U 盘能够手动挂载，但重启后没有成为 `/overlay`，先执行：
 
 ```sh
 block info
@@ -196,23 +212,21 @@ uci show fstab
 logread | sed -n -e "/- preinit -/,/- init -/p"
 ```
 
-必要时可增加启动等待时间：
+如果只是 USB 初始化较慢，可以适当增加启动等待时间：
 
 ```sh
 uci set fstab.@global[0].delay_root='15'
 uci commit fstab
 ```
 
-- ImmortalWrt 24.10 属于 OpenWrt 25.x 之前的 `opkg` 体系；如遇到安装包受 `/rom` 剩余空间限制，可按需添加：
-
-```sh
-echo 'option force_space' >> /etc/opkg.conf
-```
-
-- Extroot 成功后，软件包会使用外置 `/overlay` 的空间。citeturn1search0turn1search5
-
-> **已有 U 盘包含 `upper/`、`work/` 或其他 OverlayFS 数据时，不要直接执行上面的初始化脚本。先清理/恢复到标准 ext4 Extroot 状态。**
-
+> **注意：**
+ >
+ > - 本教程只使用 U 盘的 ext4 文件系统扩展 `/overlay`。
+ > - 不使用 Swap。
+ > - 不需要手动创建 OverlayFS 工作目录。
+ > - 不需要把整个系统搬到 U 盘。
+ > - FAT/FAT32 不适合作为 Extroot 文件系统，请使用 ext4。
+ > - Extroot 成功后，软件包和插件会使用外置存储提供的空间。
 
 ## 插件与内核安装
 
