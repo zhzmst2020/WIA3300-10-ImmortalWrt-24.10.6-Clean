@@ -79,6 +79,7 @@ jobs:
           chmod 0755 immortalwrt/files/etc/rc.local
           chmod 0755 immortalwrt/files/usr/sbin/wia3300-extroot-setup
           test -x immortalwrt/files/usr/sbin/wia3300-extroot-setup
+          sh -n immortalwrt/files/usr/sbin/wia3300-extroot-setup
           # Do not copy files/etc/config/fstab: its legacy automount defaults
           # would override the native fstab configuration and cause surprises.
           test -f immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
@@ -140,7 +141,7 @@ jobs:
           CONFIG_PACKAGE_usbutils=y
           EOF
 
-          PROFILE="${{ inputs.profile || 'clean' }}"
+          PROFILE="${{ github.event.inputs.profile || 'clean' }}"
           case "$PROFILE" in
             clean|usb-storage|usb-printer|usb-download|usb-extroot) ;;
             *) echo "ERROR: unsupported profile: $PROFILE"; exit 1 ;;
