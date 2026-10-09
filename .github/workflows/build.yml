@@ -142,7 +142,11 @@ jobs:
             exit 1
           fi
           echo "OK: kmod-yt6801 is disabled."
-          if grep -q '^CONFIG_PACKAGE_kmod-mdio-netlink=y
+          if grep -Eq '^CONFIG_PACKAGE_kmod-mdio-netlink=(y|m)$' .config; then
+            echo "ERROR: unrelated kmod-mdio-netlink was re-enabled by Kconfig."
+            exit 1
+          fi
+          echo "OK: kmod-mdio-netlink is disabled."
 
           grep -E '^CONFIG_TARGET_(ramips|ramips_mt7621|ramips_mt7621_DEVICE_skspruce_wia3300-10)=' .config || true
 
