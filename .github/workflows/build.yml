@@ -72,13 +72,15 @@ jobs:
         run: |
           cp patches/mt7621_skspruce_wia3300-10.dts immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
           cat patches/mt7621.mk.append >> immortalwrt/target/linux/ramips/image/mt7621.mk
-          mkdir -p immortalwrt/files
-          cp -a files/. immortalwrt/files/
+          mkdir -p immortalwrt/files/usr
+          cp -a files/usr/. immortalwrt/files/usr/
           mkdir -p immortalwrt/files/etc
           cp patches/rc.local immortalwrt/files/etc/rc.local
           chmod 0755 immortalwrt/files/etc/rc.local
           chmod 0755 immortalwrt/files/usr/sbin/wia3300-extroot-setup
           test -x immortalwrt/files/usr/sbin/wia3300-extroot-setup
+          # Do not copy files/etc/config/fstab: its legacy automount defaults
+          # would override the native fstab configuration and cause surprises.
           test -f immortalwrt/target/linux/ramips/dts/mt7621_skspruce_wia3300-10.dts
           test -f immortalwrt/files/etc/rc.local
 
