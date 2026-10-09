@@ -1,0 +1,71 @@
+#!/bin/sh
+# Safely prepare a pre-formatted ext4 USB partition for native ImmortalWrt extroot.
+# This script NEVER formats the USB device.
+
+set -eu
+
+fail() {
+    echo "ERROR: $*" >&2
+    exit 1
+}
+
+if [ "$(id -u)" != "0" ]; then
+    fail "Run as root."
+fi
+
+DEVICE="${1:-}"
+[ -n "$DEVICE" ] || fail "Usage: wia3300-extroot-setup /dev/sda1"
+[ -b "$DEVICE" ] || fail "$DEVICE is not a block device."
+
+INFO="$(block info "$DEVICE" 2>/dev/null)" || fail "block info failed for $DEVICE"
+UUID="$(printf '%s\n' "$INFO" | sed -n 's/.*UUID="\([^"]*\)".*/\1/p')"
+TYPE="$(printf '%s\n' "$INFO" | sed -n 's/.*TYPE="\([^"]*\)".*/\1/p')"
+
+[ -n "$UUID" ] || fail "Could not read the filesystem UUID from: $INFO"
+[ "$TYPE" = "ext4" ] || fail "$DEVICE must already be formatted as ext4 (detected: ${TYPE:-unknown}). This script will not format it."
+
+MNT="/mnt/wia3300-extroot"
+ARCHIVE="$MNT/.wia3300-overlay-copy.tar"
+mkdir -p "$MNT"
+
+CURRENT_MOUNT="$(awk -v dev="$DEVICE" '$1 == dev { print $2; exit }' /proc/mounts)"
+[ "$CURRENT_MOUNT" != "/overlay" ] || fail "$DEVICE is already mounted at /overlay; refusing to copy over the active extroot."
+if [ -n "$CURRENT_MOUNT" ]; then
+    umount "$CURRENT_MOUNT" || fail "Could not unmount $DEVICE from $CURRENT_MOUNT."
+fi
+
+mount "$DEVICE" "$MNT" || fail "Could not mount $DEVICE at $MNT."
+mounted=1
+cleanup() {
+    if [ "$mounted" = "1" ]; then
+        umount "$MNT" >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup EXIT HUP INT TERM
+
+EXISTING="$(find "$MNT" -mindepth 1 -maxdepth 1 ! -name 'lost+found' -print -quit)"
+[ -z "$EXISTING" ] || fail "The ext4 partition is not empty. Back up its contents and reformat it only if you intend to erase it, then run this script again."
+
+echo "Copying current /overlay to USB. This may take a few minutes; please do not unplug the USB drive."
+tar -C /overlay -cf "$ARCHIVE" . || fail "Could not archive /overlay."
+echo "Archive created; extracting files to USB."
+tar -C "$MNT" -xf "$ARCHIVE" || fail "Could not extract the overlay archive."
+rm -f "$ARCHIVE"
+sync
+umount "$MNT" || fail "Could not unmount $MNT after copying."
+mounted=0
+trap - EXIT HUP INT TERM
+
+uci -q delete fstab.extroot
+uci set fstab.extroot='mount'
+uci set fstab.extroot.uuid="$UUID"
+uci set fstab.extroot.target='/overlay'
+uci set fstab.@global[0].delay_root='15'
+uci commit fstab
+
+echo "Extroot configuration saved:"
+uci show fstab.extroot
+echo "USB copy completed. Reboot when ready, then verify with:"
+echo "  mount | grep -E '(/overlay|$DEVICE)'"
+echo "  df -h / /overlay"
+echo "If /overlay still comes from internal flash, collect the preinit log before changing anything else."
