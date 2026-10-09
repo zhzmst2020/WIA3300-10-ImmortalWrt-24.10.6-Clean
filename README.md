@@ -100,111 +100,75 @@ WIA3300-10 的硬件适配、固件编译、实机刷写、USB/存储、Extroot�
 
 ### U盘扩展（Extroot）
 
-WIA3300-10 使用 **ImmortalWrt 原生 Extroot**，将外置 ext4 分区作为新的可写 Overlay，用于扩展插件和软件安装空间。
+WIA3300-10 使用 ImmortalWrt 原生 Extroot，将外置 ext4 分区作为新的可写 Overlay。固件内提供 `/usr/sbin/wia3300-extroot-setup` 辅助脚本，用于校验分区、复制现有 Overlay 并生成配置，避免在 SSH 交互窗口中逐条粘贴容易中断的命令。
 
-**本教程与 ImmortalWrt 原生 Extroot 的标准工作方式完全一致。**
+> **重要：格式化会清空指定分区。请先确认设备名，并备份 U 盘中需要保留的数据。辅助脚本本身不会格式化 U 盘。**
 
-> ⚠️ 以下步骤会清空指定 U 盘分区。确认 U 盘内没有需要保留的数据后再执行。
+#### 1. 确认 U 盘分区
 
-#### 1. 安装依赖
-
-```sh
-opkg update
-opkg install block-mount kmod-usb-storage kmod-fs-ext4 e2fsprogs
-```
-
-#### 2. 格式化 U 盘
-
-确认 U 盘分区为 `/dev/sda1` 后执行：
+插入 U 盘后执行：
 
 ```sh
-DEVICE=/dev/sda1
-umount "$DEVICE" 2>/dev/null
-mkfs.ext4 "$DEVICE" || exit 1
+block info
 ```
 
-重新获取 UUID：
+确认目标分区，例如 `/dev/sda1`，并确认它不是其他磁盘或重要数据分区。不要仅凭示例照抄设备名。
+
+#### 2. 格式化为 ext4（破坏性操作）
+
+只有在确认分区可清空后，才执行以下命令。将设备名替换为上一步确认的分区：
 
 ```sh
-block info "$DEVICE"
+mkfs.ext4 /dev/sda1
 ```
 
-记下输出中的 `UUID="..."`。
+该命令会删除该分区原有文件。若命令报错，先停止并检查原因；不要把格式化和后续步骤写成一条带 `exit 1` 的长命令，以免错误处理直接结束当前 SSH shell。
 
-#### 3. 配置 Extroot
-
-执行：
+格式化完成后确认 UUID 和文件系统类型：
 
 ```sh
-UUID="$(block info "$DEVICE" | sed -n 's/.*UUID="\([^"]*\)".*/\1/p')"
-[ -n "$UUID" ] || { echo "ERROR: UUID not found"; exit 1; }
-
-uci -q delete fstab.extroot
-uci set fstab.extroot='mount'
-uci set fstab.extroot.uuid="$UUID"
-uci set fstab.extroot.target='/overlay'
-uci commit fstab
-
-uci show fstab.extroot
+block info /dev/sda1
 ```
 
-确认显示的 UUID 与刚才 `block info` 得到的 UUID 一致，并且目标为：
+输出应包含 `UUID="..."` 和 `TYPE="ext4"`。
 
-```text
-target='/overlay'
-```
-
-#### 4. 将当前 Overlay 内容复制到 U盘
-
-先挂载 U 盘：
+#### 3. 执行固件自带的 Extroot 设置脚本
 
 ```sh
-mkdir -p /mnt/extroot
-mount "$DEVICE" /mnt/extroot || exit 1
+/usr/sbin/wia3300-extroot-setup /dev/sda1
 ```
 
-复制当前 Overlay：
+脚本会执行以下检查和操作：
 
-```sh
-tar -C /overlay -cf - . | tar -C /mnt/extroot -xf -
-```
+- 确认参数是块设备，且 `block info` 能读取有效 UUID。
+- 只接受 ext4 分区；**不会自行格式化分区**。
+- 如果设备已经挂载到活动的 `/overlay`，会拒绝继续，避免覆盖正在使用的 extroot。
+- 检查目标分区是否为空（允许 `lost+found`）；发现其他文件时停止，不擅自删除。
+- 先创建归档，再解压复制，并输出阶段提示；复制成功后才写入 `fstab` 配置。
+- 将 `fstab.extroot` 设置为该分区 UUID 和 `/overlay`，并把启动等待时间设为 15 秒，以降低 USB 设备启动较慢导致的漏挂载风险。
 
-同步并卸载：
+如果脚本报告错误，请保留完整报错并停止，不要反复格式化或重启碰运气。
 
-```sh
-sync
-umount /mnt/extroot
-```
+#### 4. 重启并验证
 
-#### 5. 重启
+脚本成功完成并显示已保存的 Extroot 配置后，再执行：
 
 ```sh
 reboot
 ```
 
-#### 6. 验证
-
-重启后执行：
-
-```sh
-df -h / /overlay
-```
-
-再执行：
+重新连接后执行：
 
 ```sh
 mount | grep -E '(/overlay|/dev/sda1)'
+df -h / /overlay
 ```
 
-成功时，应该看到 U 盘分区挂载到 `/overlay`，并且 `/` 的可用空间明显增加。
+成功时，实际 USB ext4 分区应挂载到 `/overlay`，而且 `/` 的可用空间应与外置分区相对应。
 
-**判断标准：**
+#### 5. 如果重启后仍没有使用 U 盘
 
-- `/overlay` 来自 U 盘的 ext4 分区
-- `/` 的可用空间与 U 盘空间基本对应
-- LuCI → 系统 → 软件 中的软件安装空间明显增加
-
-如果 U 盘能够手动挂载，但重启后没有成为 `/overlay`，先执行：
+先不要重复格式化。执行以下只读检查并保存输出：
 
 ```sh
 block info
@@ -212,20 +176,9 @@ uci show fstab
 logread | sed -n -e "/- preinit -/,/- init -/p"
 ```
 
-如果只是 USB 初始化较慢，可以适当增加启动等待时间：
+检查重点是启动早期的 extroot 日志、UUID 是否匹配，以及 USB 分区是否在 preinit 阶段及时出现。请依据日志定位，不要在没有证据时反复修改挂载配置。
 
-```sh
-uci set fstab.@global[0].delay_root='15'
-uci commit fstab
-```
-
-> **注意：**
->
-> - 本教程使用 U 盘的 ext4 文件系统扩展 `/overlay`。
-> - 不使用 Swap。
-> - 不需要把整个系统搬到 U 盘。
-> - FAT/FAT32 不适合作为 Extroot 文件系统，请使用 ext4。
-> - Extroot 成功后，软件包和插件会使用外置存储提供的空间。
+> 注意：本方案使用 ext4 扩展 `/overlay`，不使用 Swap，也不把整个系统搬到 U 盘。若拔掉 U 盘，系统可能退回内部闪存中的原有 overlay；不要在外置 overlay 已启用时随意升级内核或内核模块。
 
 ## 插件与内核安装
 
