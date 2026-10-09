@@ -122,12 +122,172 @@ jobs:
           CONFIG_PACKAGE_usbutils=y
           EOF
 
+          # The WIA3300-10 build does not require the unrelated yt6801 DKMS driver.
+          # Keep it explicitly disabled; the earlier delete alone was not enough
+          # because Kconfig selected it again during defconfig.
+          printf '\n# CONFIG_PACKAGE_kmod-yt6801 is not set\n' >> .config
+
           echo "Selected profile: clean"
 
       - name: Generate final configuration
         working-directory: immortalwrt
         run: |
           make defconfig
+
+          echo "========================================"
+          echo "YT6801 DRIVER CHECK"
+          echo "========================================"
+          if grep -q '^CONFIG_PACKAGE_kmod-yt6801=y
+          echo "========================================"
+          grep -E '^CONFIG_TARGET_(ramips|ramips_mt7621|ramips_mt7621_DEVICE_skspruce_wia3300-10)=' .config || true
+
+          echo "========================================"
+          echo "EXTROOT SUPPORT"
+          echo "========================================"
+          grep -E '^CONFIG_PACKAGE_(block-mount|e2fsprogs|kmod-usb-storage|kmod-fs-ext4)=' .config || true
+          grep -q '^CONFIG_PACKAGE_block-mount=y$' .config
+          grep -q '^CONFIG_PACKAGE_e2fsprogs=y$' .config
+          grep -q '^CONFIG_PACKAGE_kmod-usb-storage=y$' .config
+          grep -q '^CONFIG_PACKAGE_kmod-fs-ext4=y$' .config
+          echo "OK: native extroot filesystem packages selected."
+
+          echo "========================================"
+          echo "PROXY KERNEL SUPPORT"
+          echo "========================================"
+          grep -E '^CONFIG_PACKAGE_(kmod-tun|kmod-nf-socket|kmod-nf-tproxy|kmod-nft-compat|kmod-nft-socket|kmod-nft-tproxy|kmod-inet-diag|kmod-netlink-diag)=' .config || true
+
+          echo "========================================"
+          echo "OPENCLASH KMOD CHECK"
+          echo "========================================"
+          grep -q '^CONFIG_PACKAGE_kmod-inet-diag=y$' .config
+          grep -q '^CONFIG_PACKAGE_kmod-netlink-diag=y$' .config
+          grep -q '^CONFIG_PACKAGE_kmod-tun=y$' .config
+          grep -q '^CONFIG_PACKAGE_kmod-nft-tproxy=y$' .config
+          echo "OK: OpenClash kernel dependency packages selected."
+
+          echo "========================================"
+          echo "CLEAN PROXY BODY CHECK"
+          echo "========================================"
+          if grep -Eq '^CONFIG_PACKAGE_(luci-app-openclash|luci-app-passwall|luci-app-passwall2|luci-app-ssr-plus|sing-box|xray-core|v2ray-core)=' .config; then
+            echo "ERROR: proxy plugin/core unexpectedly selected."
+            exit 1
+          fi
+          echo "OK: clean proxy base confirmed."
+
+          echo "========================================"
+          echo "KERNEL DIAG CONFIG"
+          echo "========================================"
+          grep -E '^(CONFIG_INET_DIAG|CONFIG_INET_TCP_DIAG|CONFIG_INET_UDP_DIAG|CONFIG_INET_RAW_DIAG)=' .config || true
+
+          echo "BASE CONFIGURATION CHECK PASSED"
+
+      - name: Download sources
+        working-directory: immortalwrt
+        run: |
+          make download -j8
+
+      - name: Build firmware
+        working-directory: immortalwrt
+        run: |
+          set +e
+          echo "===== BUILD HOST =====" | tee build.log
+          uname -a | tee -a build.log
+          echo "CPU: $(nproc)" | tee -a build.log
+          free -h | tee -a build.log
+          df -h . | tee -a build.log
+          echo "===== BUILD START =====" | tee -a build.log
+
+          make -j2 V=s > build.full.log 2>&1
+          rc=$?
+
+          echo "===== BUILD RETURN CODE: $rc =====" | tee -a build.log
+          echo "===== LAST 300 LINES =====" | tee -a build.log
+          tail -n 300 build.full.log | tee -a build.log
+          echo "===== ERROR SUMMARY =====" | tee -a build.log
+          grep -nE 'fatal error:|error:|Error:|ERROR:|Killed|cc1plus:|collect2:|make\[[0-9]+\]: \*\*\*' build.full.log | tail -n 100 | tee -a build.log || true
+
+          exit "$rc"
+
+      - name: Verify generated kernel modules
+        working-directory: immortalwrt
+        run: |
+          set -eu
+          OUTDIR="bin/targets/ramips/mt7621"
+
+          echo "========================================"
+          echo "SEARCH INET DIAG PACKAGES"
+          echo "========================================"
+          find "$OUTDIR" -type f \( -name '*inet-diag*.ipk' -o -name '*netlink-diag*.ipk' \) -print | sort || true
+
+          echo "========================================"
+          echo "SEARCH KERNEL MODULE FILES"
+          echo "========================================"
+          find staging_dir -type f \( -name 'inet_diag.ko' -o -name 'tcp_diag.ko' -o -name 'udp_diag.ko' -o -name 'raw_diag.ko' \) -print | sort || true
+
+          echo "========================================"
+          echo "REQUIRED MODULE CHECK"
+          echo "========================================"
+          test -n "$(find staging_dir -type f -name 'inet_diag.ko' -print -quit)"
+          echo "OK: inet_diag.ko exists."
+
+      - name: Verify firmware output
+        run: |
+          set -eu
+          OUTDIR="immortalwrt/bin/targets/ramips/mt7621"
+          test -d "$OUTDIR"
+
+          echo "========================================"
+          echo "BUILD OUTPUT"
+          echo "========================================"
+          ls -lah "$OUTDIR"
+
+          mkdir -p output
+          found=0
+
+          for f in "$OUTDIR"/*squashfs-sysupgrade.bin; do
+            [ -f "$f" ] || continue
+            if printf '%s\n' "$(basename "$f")" | grep -Eq 'skspruce_wia3300-10.*squashfs-sysupgrade\.bin'; then
+              cp -f "$f" output/
+              found=1
+            fi
+          done
+
+          if [ "$found" -ne 1 ]; then
+            echo "ERROR: WIA3300-10 sysupgrade image was not found."
+            find "$OUTDIR" -maxdepth 1 -type f -name '*squashfs-sysupgrade.bin' -print | sort || true
+            exit 1
+          fi
+
+          ls -lh output
+          echo "FIRMWARE CHECK PASSED"
+
+      - name: Upload build failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WIA3300-10-build-failure-logs-${{ github.run_number }}
+          path: |
+            immortalwrt/build.log
+            immortalwrt/build.full.log
+          if-no-files-found: warn
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WIA3300-10-ImmortalWrt-24.10.6-Clean
+          path: output/*
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: WIA3300-10-ImmortalWrt-24.10.6-build-${{ github.run_number }}
+          name: WIA3300-10 ImmortalWrt 24.10.6 Clean build ${{ github.run_number }}
+          files: output/*
+ .config; then
+            echo "ERROR: unrelated kmod-yt6801 was re-enabled by Kconfig."
+            exit 1
+          fi
+          echo "OK: kmod-yt6801 is disabled."
 
           echo "========================================"
           echo "TARGET"
